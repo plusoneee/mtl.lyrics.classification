@@ -25,8 +25,8 @@ class DatasetUtils:
     @staticmethod
     def get_tokenizer(name='xlnet'):
         assert name.lower() in ['bert', 'xlnet']
-
         print(f"===== Create {name.upper()} Tokenizer =====")
+
         if name == 'bert':
             tokenizer = BertTokenizer.from_pretrained(
                 'bert-base-uncased'
@@ -42,15 +42,13 @@ class DatasetUtils:
 
 class MoodyLyrics(Dataset):
     def __init__(self, root_dir, tokenizer, max_len=128, mode='train'):
-        assert mode in ['train', 'val']
         
-        self.mode = mode
-
-        if self.mode == 'train':
-            self.df = pd.read_csv(f'{root_dir}/Train.csv')
+        assert mode in ['train', 'val']
+        if mode == 'train':
+            self.df = pd.read_csv(f'{root_dir}/train.csv')
             print('* Train size:', len(self.df))
         else: 
-            self.df = pd.read_csv(f'{root_dir}/Test.csv')
+            self.df = pd.read_csv(f'{root_dir}/test.csv')
             print('* Validation size:', len(self.df))
 
         self.tokenizer = tokenizer
@@ -69,6 +67,7 @@ class MoodyLyrics(Dataset):
 
     def get_class_weights(self):
         label_vc = self.label_value_counts()
+        
         # happy, angry, sad, relaxed 4 classes
         _class_weights = [0] * len(label_vc) 
         for labelname, _count in label_vc.items():
@@ -83,7 +82,6 @@ class MoodyLyrics(Dataset):
         lyric = self.df.lyric.iloc[idx]
         _label_str = self.df.mood.iloc[idx]
         label = self.label_map[_label_str]
-
         inputs = self.tokenizer.encode_plus(
             text=lyric,
             text_pair=None,
