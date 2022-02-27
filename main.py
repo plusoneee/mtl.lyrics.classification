@@ -18,7 +18,6 @@ if __name__ == '__main__':
     for lr, batch_size in product(*params):
 
         model = LyricsEmotionXLNet()
-
         print(f'- Learning rate :{lr}, batch size: {batch_size}')
         train_dataset = MoodyLyrics(
             root_dir='Dataset',
@@ -40,14 +39,18 @@ if __name__ == '__main__':
             epcoh_num=100,
             learning_rate=lr
         )
-
         stop_epoch = trainer.training(train_loader, val_loader, patience=5)
-        trainer.writer.add_hparams(
-        {   
+        
+        hparms = {   
             'stop_epoch': stop_epoch,
             'lr':lr,
             'train_batch_size':batch_size,
             'best_epoch': trainer.best_epoch
-         },{
-            'max_val_acc': max(trainer.valid_accuracies)
-        })
+            }
+        
+        metric = {
+            'max_val_acc': max(trainer.valid_accuracies),
+            'mean_val_acc': sum(trainer.valid_accuracies)/len(trainer.valid_accuracies)
+        }
+        
+        trainer.add_hparams(hparms, metric)

@@ -1,6 +1,5 @@
 import os
 import torch
-from model import LyricsEmotionBERT, LyricsEmotionXLNet
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 
@@ -24,9 +23,11 @@ class LyricsEmotionTrainer:
         log_dir = "logs/" + runing_datetime
         self.writer = SummaryWriter(log_dir)
         self.best_epoch = 0
-        self.train_accuracies = []
         self.valid_accuracies = []
     
+    def add_hparams(self, hparms:dict, metric:dict):
+        self.writer.add_hparams(hparms, metric)
+
     def get_adamw_optimizer(self):
         param_optimizer = list(self.model.named_parameters())
         no_decay = ['bias', 'gamma', 'beta']
@@ -38,61 +39,54 @@ class LyricsEmotionTrainer:
         ]
         return torch.optim.AdamW(optimizer_grouped_parameters, lr=self.learning_rate)
 
-    def test_accuracy(self, loader):
+    def validate_one_step(self, loader):
         self.model.eval()
-        correct, total = 0, 0
+        correct, total, loss = 0, 0, 0
         with torch.no_grad():
             for idx, data in enumerate(loader):
                 ids, mask, token_type_ids, targets = self._parse_loaded(data)
                 targets = targets.to('cpu')
                 outputs = self.model(ids, mask, token_type_ids).to('cpu')
-                pred = torch.argmax(outputs.data, 1) # row
-                correct += (pred == targets).sum()
+                correct += self.calculat_output_correctly(outputs, targets)
                 total += targets.size(0)
-            
+                loss += self.lossfunc(outputs, targets).item()
+        
         acc = 100.0 * float(correct/total)
-        return acc
+        return acc, loss/idx
+    
+    def calculat_output_correctly(self, outputs, targets):
+        pred = torch.argmax(outputs.data, 1) # row
+        return (pred == targets).sum()
 
     def train_one_step(self, train_loader):
-        ep_loss = 0
+        ep_loss, correct, total = 0, 0, 0
         self.model.train()
         for idx, data in enumerate(train_loader):
             self.optimizer.zero_grad()
 
             ids, mask, token_type_ids, targets = self._parse_loaded(data)
             outputs = self.model(ids, mask, token_type_ids)
+            # acc
+            correct += self.calculat_output_correctly(outputs, targets)
+            total += targets.size(0)
+            
+            # loss
             loss = self.lossfunc(outputs, targets)
             loss.backward()
             self.optimizer.step()
             ep_loss += loss.item()
 
-        return ep_loss/idx
-
-    def validate_one_step(self, valid_loader):
-        ep_loss = 0
-        self.model.eval()
-        with torch.no_grad():
-            for idx, data in enumerate(valid_loader):
-                ids, mask, token_type_ids, targets = self._parse_loaded(data)
-                targets = targets.to('cpu')
-                outputs = self.model(ids, mask, token_type_ids).to('cpu')
-                loss = self.lossfunc(outputs, targets)
-                ep_loss += loss.item()
-
-        return ep_loss/idx
-
+        acc = 100.0 * float(correct/total)
+        return acc, ep_loss/idx
 
     def training(self, train_loader, valid_loader, patience=5):
         triger_times = 0
         min_valid_loss = None
 
         for epoch in range(self.epoch_number):
-            train_loss = self.train_one_step(train_loader)
-            train_acc = self.test_accuracy(train_loader)
-
-            valid_loss = self.validate_one_step(valid_loader)
-            valid_acc = self.test_accuracy(valid_loader)
-
+            train_acc, train_loss = self.train_one_step(train_loader)
+            valid_acc, valid_loss = self.validate_one_step(valid_loader)
+            
             print('Epoch: {} \n\t - Avgerage Training Loss: {:.6f}\n\t - Average Validation Loss: {:.6f}'.format(
                 epoch + 1, 
                 train_loss,
@@ -109,7 +103,6 @@ class LyricsEmotionTrainer:
             self.writer.add_scalar('accuracy/training', train_acc, epoch+1)
             self.writer.add_scalar('accuracy/validation', valid_acc, epoch+1)
 
-            self.train_accuracies.append(train_acc)
             self.valid_accuracies.append(valid_acc)
 
             if min_valid_loss is None:
