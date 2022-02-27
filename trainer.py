@@ -6,18 +6,16 @@ import datetime
 
 class LyricsEmotionTrainer:
 
-    def __init__(self, epcoh_num, learning_rate=1e-6, checkpoint_root='./checkpoints'):
+    def __init__(self, model, epcoh_num, learning_rate=1e-6, checkpoint_root='./checkpoints'):
         torch.cuda.empty_cache()
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
-        self.model = LyricsEmotionXLNet()
+        self.model = model
         self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
         self.model.to(self.device)
+        self.learning_rate = learning_rate
         self.lossfunc = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=learning_rate
-        )
+        self.optimizer = self.get_adamw_optimizer()
         self.epoch_number = epcoh_num
         runing_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -28,7 +26,18 @@ class LyricsEmotionTrainer:
         self.best_epoch = 0
         self.train_accuracies = []
         self.valid_accuracies = []
- 
+    
+    def get_adamw_optimizer(self):
+        param_optimizer = list(self.model.named_parameters())
+        no_decay = ['bias', 'gamma', 'beta']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+            'weight_decay_rate': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+            'weight_decay_rate': 0.0}
+        ]
+        return torch.optim.AdamW(optimizer_grouped_parameters, lr=self.learning_rate)
+
     def test_accuracy(self, loader):
         self.model.eval()
         correct, total = 0, 0
