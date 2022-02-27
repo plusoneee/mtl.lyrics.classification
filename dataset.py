@@ -6,20 +6,24 @@ from torch.utils.data.sampler import WeightedRandomSampler
 
 class DatasetUtils:
     @staticmethod
-    def get_loader(dataset, batch_size=32):
-        sample_weights = [0] * len(dataset)
-        class_weights = dataset.get_class_weights()
-        for idx, data in enumerate(dataset):
-            label = data['targets'].int()
-            class_weight = class_weights[label]
-            sample_weights[idx] = class_weight
+    def get_loader(dataset, batch_size=32, train=True):
+        
+        if train:
+            sample_weights = [0] * len(dataset)
+            class_weights = dataset.get_class_weights()
+            for idx, data in enumerate(dataset):
+                label = data['targets'].int()
+                class_weight = class_weights[label]
+                sample_weights[idx] = class_weight
 
-        sampler = WeightedRandomSampler(
-            sample_weights, 
-            num_samples=len(sample_weights), 
-            replacement=True
-        )
-        loader = DataLoader(dataset, batch_size, sampler=sampler)
+            sampler = WeightedRandomSampler(
+                sample_weights, 
+                num_samples=len(sample_weights), 
+                replacement=True
+            )
+            loader = DataLoader(dataset, batch_size, sampler=sampler)
+        else:
+            loader = DataLoader(dataset, batch_size)
         return loader
 
     @staticmethod
@@ -122,4 +126,4 @@ if __name__ == '__main__':
         mode='train',
         max_len=1024
     )
-    train_loader = DatasetUtils.get_loader(dataset, 1)
+    train_loader = DatasetUtils.get_loader(dataset, 1, train=True)
