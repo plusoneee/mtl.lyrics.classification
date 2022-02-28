@@ -2,33 +2,46 @@ import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import datetime
+from multitask_loss import MultiTaskLossWrapper
 
 class LyricsEmotionTrainer:
 
     def __init__(self, model, epcoh_num, learning_rate=1e-6, checkpoint_root='./checkpoints'):
         torch.cuda.empty_cache()
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
         self.model = model
         self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
         self.model.to(self.device)
-        self.learning_rate = learning_rate
-        self.lossfunc = torch.nn.CrossEntropyLoss()
-        self.optimizer = self.get_adamw_optimizer()
+        
         self.epoch_number = epcoh_num
-        runing_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.learning_rate = learning_rate
 
-        self.checkpoint_root = checkpoint_root + os.sep + runing_datetime
+        self.lossfunc = self.lossfunction
+        self.optimizer = self.adamw_optimizer
+        
+        self.runing_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.checkpoint_root = checkpoint_root + os.sep + self.runing_datetime
         os.mkdir(self.checkpoint_root)
-        log_dir = "logs/" + runing_datetime
-        self.writer = SummaryWriter(log_dir)
+        self.writer = self.tfboard_writer
+
         self.best_epoch = 0
         self.valid_accuracies = []
-    
+
     def add_hparams(self, hparms:dict, metric:dict):
         self.writer.add_hparams(hparms, metric)
 
-    def get_adamw_optimizer(self):
+    @property
+    def lossfunction(self):
+        return torch.nn.CrossEntropyLoss()
+
+    @property
+    def tfboard_writer(self):
+        log_dir = 'logs/' + self.runing_datetime
+        print(f"* Tensorboard Log @ {log_dir}")
+        return SummaryWriter(log_dir)
+
+    @property
+    def adamw_optimizer(self):
         param_optimizer = list(self.model.named_parameters())
         no_decay = ['bias', 'gamma', 'beta']
         optimizer_grouped_parameters = [
@@ -51,7 +64,7 @@ class LyricsEmotionTrainer:
                 total += targets.size(0)
                 loss += self.lossfunc(outputs, targets).item()
         
-        acc = 100.0 * float(correct/total)
+            acc = 100.0 * float(correct/total)
         return acc, loss/idx
     
     def calculat_output_correctly(self, outputs, targets):
@@ -136,7 +149,6 @@ class LyricsEmotionTrainer:
             print('\t * TrigerTimes/Patience: {}/{}'.format(triger_times, patience))
         return epoch
 
-
     def load_checkpoint(self, checkpoint_path):
         """
         checkpoint_path: path to save checkpoint
@@ -162,3 +174,64 @@ class LyricsEmotionTrainer:
         token_type_ids = data['token_type_ids'].to(self.device)
         targets = data['targets'].to(self.device)
         return ids, mask, token_type_ids, targets
+
+class MultiTaskTrainer(LyricsEmotionTrainer):
+    def __init__(self, model, epcoh_num, learning_rate=1e-6, checkpoint_root='./mtl-checkpoints'):
+        super(MultiTaskTrainer, self).__init__(model, epcoh_num, learning_rate, checkpoint_root)
+    
+    @property
+    def tfboard_writer(self):
+        log_dir = 'multitask-logs/' + self.runing_datetime
+        print(f"* Tensorboard Log @ {log_dir}")
+        return SummaryWriter(log_dir)
+        
+    @property
+    def lossfunction(self):
+        lossfunc = MultiTaskLossWrapper()
+        return lossfunc
+
+    def validate_one_step(self, loader):
+        self.model.eval()
+        correct, total, loss = 0, 0, 0
+        with torch.no_grad():
+            for idx, data in enumerate(loader):
+                ids, mask, token_type_ids, targets = self._parse_loaded(data)
+                targets = targets.to('cpu')
+                outputs = self.model(ids, mask, token_type_ids).to('cpu')
+                correct += self.calculat_output_correctly(outputs[0], targets[:, 0])
+                total += targets.size(0)
+                loss += self.lossfunc(outputs, targets).item()
+        
+            acc = 100.0 * float(correct/total)
+        
+        return acc, loss/idx
+
+    def train_one_step(self, train_loader):
+        ep_loss, correct, total = 0, 0, 0
+        self.model.train()
+        for idx, data in enumerate(train_loader):
+            self.optimizer.zero_grad()
+            ids, mask, token_type_ids, targets = self._parse_loaded(data)
+            outputs = self.model(ids, mask, token_type_ids)
+
+            # emotion task acc
+            correct += self.calculat_output_correctly(outputs[0], targets[:, 0])          
+            total += targets.size(0)
+  
+            # multi-tasks loss
+            loss = self.lossfunc(outputs, targets)
+            loss.backward()
+            self.optimizer.step()
+            ep_loss += loss.item()
+
+        acc = 100.0 * float(correct/total)
+        return acc, ep_loss/idx
+
+if __name__ == '__main__':
+    from multitask_model import MultiTaskLyricsEmotionXLNet
+    model = MultiTaskLyricsEmotionXLNet()
+    trainer = MultiTaskTrainer(
+        model,
+        epcoh_num=10,
+        learning_rate=1e-5
+    )
