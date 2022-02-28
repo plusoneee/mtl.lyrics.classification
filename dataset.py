@@ -6,25 +6,30 @@ from torch.utils.data.sampler import WeightedRandomSampler
 
 class DatasetUtils:
     @staticmethod
-    def get_loader(dataset, batch_size=32, train=True):
+    def get_loader(dataset, batch_size=32, train=True, multitask=False):
         
-        if train:
-            sample_weights = [0] * len(dataset)
-            class_weights = dataset.get_class_weights()
-            for idx, data in enumerate(dataset):
-                label = data['targets'].int()
-                class_weight = class_weights[label]
-                sample_weights[idx] = class_weight
+        if not train:
+            return  DataLoader(dataset, batch_size)
+        
+        sample_weights = [0] * len(dataset)
+        class_weights = dataset.get_class_weights()
+        for idx, data in enumerate(dataset):
 
-            sampler = WeightedRandomSampler(
-                sample_weights, 
-                num_samples=len(sample_weights), 
-                replacement=True
-            )
-            loader = DataLoader(dataset, batch_size, sampler=sampler)
-        else:
-            loader = DataLoader(dataset, batch_size)
-        return loader
+            if multitask:
+                # targets: (emotion, valence, arousal)
+                label = data['targets'][0].int()
+            else:
+                # targets: emotion
+                label = data['targets'].int()
+            class_weight = class_weights[label]
+            sample_weights[idx] = class_weight
+
+        sampler = WeightedRandomSampler(
+            sample_weights, 
+            num_samples=len(sample_weights), 
+            replacement=True
+        )
+        return DataLoader(dataset, batch_size, sampler=sampler)
 
     @staticmethod
     def get_tokenizer(name='xlnet'):
@@ -58,7 +63,7 @@ class MoodyLyrics(Dataset):
         self.max_len = max_len
         self.multitask = multitask # label, valence, arousal
 
-        # label to index
+        # labelname to index
         self.label_map = {
             'happy': 0,
             'angry': 1,
@@ -66,7 +71,7 @@ class MoodyLyrics(Dataset):
             'relaxed': 3
         }
 
-        # label to valence value
+        # labelname to valence value
         self.label_map_valence = {
             'happy': 1,
             'angry': 0,
@@ -74,7 +79,7 @@ class MoodyLyrics(Dataset):
             'relaxed': 1
         }
 
-        # label to arouosal value
+        # labelname to arouosal value
         self.label_map_arousal = {
             'happy': 1,
             'angry': 1,
@@ -131,7 +136,7 @@ class MoodyLyrics(Dataset):
         }
 
 
-def dataset_example(model_name='xlent', multitask=False):
+def run_dataset_example(model_name='xlent', multitask=False):
     tokenizer = DatasetUtils.get_tokenizer(model_name)
     dataset = MoodyLyrics(
         root_dir='Dataset',
@@ -142,13 +147,12 @@ def dataset_example(model_name='xlent', multitask=False):
     )
     return dataset
 
-
 if __name__ == '__main__':
 
     # targets for multi-task 
-    dataset = dataset_example('xlnet', multitask=False)
+    dataset = run_dataset_example('xlnet', multitask=False)
     print(dataset[10]['targets'])
     
     # targets for single-task 
-    dataset = dataset_example('xlnet', multitask=True)
+    dataset = run_dataset_example('xlnet', multitask=True)
     print(dataset[10]['targets'])
