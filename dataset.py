@@ -41,11 +41,10 @@ class DatasetUtils:
                 do_lower_case = True,
                 remove_space= True
                 )
-
         return tokenizer
 
 class MoodyLyrics(Dataset):
-    def __init__(self, root_dir, tokenizer, max_len=128, mode='train'):
+    def __init__(self, root_dir, tokenizer, max_len=128, mode='train', multitask=False):
         
         assert mode in ['train', 'val']
         if mode == 'train':
@@ -57,13 +56,30 @@ class MoodyLyrics(Dataset):
 
         self.tokenizer = tokenizer
         self.max_len = max_len
-        
+        self.multitask = multitask # label, valence, arousal
+
         # label to index
         self.label_map = {
             'happy': 0,
             'angry': 1,
             'sad': 2,
             'relaxed': 3
+        }
+
+        # label to valence value
+        self.label_map_valence = {
+            'happy': 1,
+            'angry': 0,
+            'sad': 0,
+            'relaxed': 1
+        }
+
+        # label to arouosal value
+        self.label_map_arousal = {
+            'happy': 1,
+            'angry': 1,
+            'sad': 0,
+            'relaxed': 0,
         }
 
     def label_value_counts(self):
@@ -85,7 +101,15 @@ class MoodyLyrics(Dataset):
     def __getitem__(self, idx):
         lyric = self.df.lyric.iloc[idx]
         _label_str = self.df.mood.iloc[idx]
-        label = self.label_map[_label_str]
+
+        if self.multitask:
+            emotion = self.label_map[_label_str]
+            valence = self.label_map_valence[_label_str]
+            arousal = self.label_map_arousal[_label_str]
+            targets = (emotion, valence, arousal)
+        else:
+            targets = self.label_map[_label_str]
+        
         inputs = self.tokenizer.encode_plus(
             text=lyric,
             text_pair=None,
@@ -103,27 +127,28 @@ class MoodyLyrics(Dataset):
             'ids': torch.tensor(ids, dtype=torch.long),
             'mask': torch.tensor(mask, dtype=torch.long),
             'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
-            'targets': torch.tensor(label, dtype=torch.long)
+            'targets': torch.tensor(targets, dtype=torch.long)
         }
+
+
+def dataset_example(model_name='xlent', multitask=False):
+    tokenizer = DatasetUtils.get_tokenizer(model_name)
+    dataset = MoodyLyrics(
+        root_dir='Dataset',
+        tokenizer=tokenizer,
+        mode='train',
+        max_len=256,
+        multitask=multitask
+    )
+    return dataset
+
 
 if __name__ == '__main__':
 
-    # BERT example
-    tokenizer = DatasetUtils.get_tokenizer('bert')
-    dataset = MoodyLyrics(
-        root_dir='MoodylyricDataset',
-        tokenizer=tokenizer,
-        mode='train',
-        max_len=256
-    )
-    train_loader = DatasetUtils.get_loader(dataset, 1)
-
-    # XLNET example
-    tokenizer = DatasetUtils.get_tokenizer('xlnet')
-    dataset = MoodyLyrics(
-        root_dir='MoodylyricDataset',
-        tokenizer=tokenizer,
-        mode='train',
-        max_len=1024
-    )
-    train_loader = DatasetUtils.get_loader(dataset, 1, train=True)
+    # targets for multi-task 
+    dataset = dataset_example('xlnet', multitask=False)
+    print(dataset[10]['targets'])
+    
+    # targets for single-task 
+    dataset = dataset_example('xlnet', multitask=True)
+    print(dataset[10]['targets'])
