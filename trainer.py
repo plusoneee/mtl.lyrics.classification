@@ -196,9 +196,9 @@ class MultiTaskTrainer(LyricsEmotionTrainer):
         with torch.no_grad():
             for idx, data in enumerate(loader):
                 ids, mask, token_type_ids, targets = self._parse_loaded(data)
-                targets = targets.to('cpu')
-                outputs = self.model(ids, mask, token_type_ids).to('cpu')
-                correct += self.calculat_output_correctly(outputs[0], targets[:, 0])
+                targets = targets
+                outputs = self.model(ids, mask, token_type_ids)
+                correct += self.calculat_output_correctly(outputs[0].to('cpu'), targets[:, 0].to('cpu'))
                 total += targets.size(0)
                 loss += self.lossfunc(outputs, targets).item()
         
