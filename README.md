@@ -17,7 +17,7 @@ We used `MoodyLyrcis` dataset for this repo. Due to potential copyright issues, 
 ```
 index,artist,song,mood,lyric
 ```
-3. Only need `mood` and `lyric` columns in the training process. You can adjust the costom dataset `multitasks/utils/dataset.py` to fit your own lyris dataset.
+3. Only need two columns: `mood` and `lyric` in the training process. You can adjust the costom dataset `multitasks/utils/dataset.py` to fit your own dataset.
 
 ## Enviroment Setup
 1. PyTorch with CUDA-enabled GPU.
@@ -36,5 +36,5 @@ Run command:
 tensorboard --logdir='{log_path_you_define_at_config.py}'
 ```
 
-### Screen shot:
+**Tensorboard screen shot**
 <img src=".images/results-screen-shot.png" width="1000" height="auto" />
