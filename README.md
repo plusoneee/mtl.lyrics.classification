@@ -30,7 +30,11 @@ cd multitasks
 python main.py
 ```
 
-## Show Results
+## Results
+Run command:
 ```
 tensorboard --logdir='{log_path_you_define_at_config.py}'
 ```
+
+### Screen shot:
+<img src=".images/results-screen-shot.png" width="1000" height="auto" />
