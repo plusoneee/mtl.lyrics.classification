@@ -17,7 +17,7 @@ We used `MoodyLyrcis` dataset for this repo. Due to potential copyright issues, 
 ```
 index,artist,song,mood,lyric
 ```
-3. Only need `mood` and `lyric` columns in the training process. You can adjust the customer dataset `multitasks/utils/dataset.py` to fit your own lyris dataset.
+3. Only need `mood` and `lyric` columns in the training process. You can adjust the costom dataset `multitasks/utils/dataset.py` to fit your own lyris dataset.
 
 ## Enviroment Setup
 1. PyTorch with CUDA-enabled GPU.
