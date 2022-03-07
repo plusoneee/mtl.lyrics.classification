@@ -1,4 +1,4 @@
-#  Mutli-tasks for Lyrics Classifcation
+#  Multi-tasks for Lyrics Classifcation
 **Unofficial** code for paper: **Transformer-based approach towards music emotion recognition from lyrics**
 
 * [Paper link](https://arxiv.org/abs/2101.02051)
