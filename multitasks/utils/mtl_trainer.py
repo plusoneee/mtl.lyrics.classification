@@ -153,9 +153,6 @@ class MultiTaskTrainer():
         return epoch
 
     def load_checkpoint(self, checkpoint_path):
-        """
-        checkpoint_path: path to save checkpoint
-        """
         # load check point
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint)
