@@ -102,7 +102,7 @@ class MultiTaskTrainer():
         acc = 100.0 * float(correct/total)
         return acc, ep_loss/idx
     
-    def training(self, train_loader, valid_loader, patience=5):
+    def training(self, train_loader, valid_loader, patience=5, acc_baseline=80.0):
         triger_times = 0
         min_valid_loss = None
 
@@ -139,20 +139,13 @@ class MultiTaskTrainer():
 
                     return epoch+1
 
-            elif valid_loss < min_valid_loss and valid_acc > 50.0:
+            elif valid_loss < min_valid_loss and valid_acc >= acc_baseline:
                 triger_times = 0
                 # create checkpoint variable and add important data
-                checkpoint = {
-                    'epoch': epoch + 1,
-                    'valid_loss_min': valid_loss,
-                    'state_dict': self.model.state_dict(),
-                    'optimizer': self.optimizer.state_dict()
-                }
-
                 checkpoint_path = self.checkpoint_root + os.sep + f'epoch-{epoch+1}-loss-{valid_loss:.3f}-ac-{valid_acc}.pt'
                 print('** Validation loss decreased ({:.6f} --> {:.6f}). Saving model ..'.format(min_valid_loss, valid_loss))
                 # save checkpoint as best model
-                self.save_checkpoint(checkpoint, checkpoint_path)
+                self.save_checkpoint(checkpoint_path)
                 min_valid_loss = valid_loss
                 self.best_epoch = epoch+1
 
@@ -165,18 +158,10 @@ class MultiTaskTrainer():
         """
         # load check point
         checkpoint = torch.load(checkpoint_path)
-        
-        # initialize state_dict  & optimizer from checkpoint
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        
-        # initialize valid_loss_min from checkpoint to valid_loss_min
-        valid_loss_min = checkpoint['valid_loss_min']
-        
-        return checkpoint['epoch'], valid_loss_min.item()
+        self.model.load_state_dict(checkpoint)
 
-    def save_checkpoint(self, state, checkpoint_path):
-        torch.save(state, checkpoint_path)
+    def save_checkpoint(self, checkpoint_path):
+        torch.save(self.model.state_dict(), checkpoint_path)
         
     def _parse_loaded(self, data):
         ids = data['ids'].to(self.device)
@@ -184,3 +169,6 @@ class MultiTaskTrainer():
         token_type_ids = data['token_type_ids'].to(self.device)
         targets = data['targets'].to(self.device)
         return ids, mask, token_type_ids, targets
+
+    def add_hparams(self, hparms:dict, metric:dict):
+        self.writer.add_hparams(hparms, metric)
