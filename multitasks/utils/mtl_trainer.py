@@ -161,8 +161,9 @@ class MultiTaskTrainer():
         self.model.load_state_dict(checkpoint)
 
     def save_checkpoint(self, checkpoint_path):
-        torch.save(self.model.state_dict(), checkpoint_path)
-        
+        #torch.save(self.model.state_dict(), checkpoint_path)
+        torch.save(self.model.module.state_dict(), checkpoint_path)
+    
     def _parse_loaded(self, data):
         ids = data['ids'].to(self.device)
         mask = data['mask'].to(self.device)
