@@ -50,7 +50,12 @@ if __name__ == '__main__':
             log_path=cnf.LOG_PATH
         )
 
-        stop_epoch = trainer.training(train_loader, val_loader, patience=cnf.EARLY_STOPING_PATIENCE)
+        stop_epoch = trainer.training(
+            train_loader, 
+            val_loader, 
+            patience=cnf.EARLY_STOPING_PATIENCE, 
+            acc_baseline=cnf.ACC_BASELINE)
+            
         hparms = {   
             'stop_epoch': stop_epoch,
             'lr':lr,
